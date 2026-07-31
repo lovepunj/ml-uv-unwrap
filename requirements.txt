@@ -1,14 +1,15 @@
-# Core ML / math
-numpy>=1.24
-scipy>=1.10
-trimesh>=4.0
-einops>=0.6
-xatlas>=0.0.9
-igl>=2.4.0
-pyyaml>=6.0
-rich>=13.0
+# Pinned to the validated dev environment (Python 3.9, CPU torch).
+# Versions resolve to binary wheels on linux cp39 — no source builds.
+numpy==2.0.2
+scipy==1.13.1
+trimesh==4.12.2
+einops==0.8.2
+xatlas==0.0.11
+libigl==2.6.2
+pyyaml==6.0.3
+rich==15.0.0
 
 # Web
-fastapi>=0.110
-uvicorn>=0.29
-python-multipart>=0.0.9
+fastapi==0.128.8
+uvicorn==0.39.0
+python-multipart==0.0.20

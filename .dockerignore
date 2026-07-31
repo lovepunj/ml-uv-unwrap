@@ -1,0 +1,28 @@
+# Git / CI
+.git
+.github
+
+# Python
+__pycache__/
+*.py[cod]
+*.egg-info/
+.pytest_cache/
+.venv/
+venv/
+
+# Model weights (not bundled in git)
+*.ckpt
+*.pt
+*.pth
+
+# Runtime data
+web/uploads/
+web/results/
+uploads/
+results/
+
+# Deployment notes (not needed in the image)
+deploy/
+
+# OS
+.DS_Store
