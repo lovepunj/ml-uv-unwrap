@@ -1,0 +1,37 @@
+name: Deploy frontend to GitHub Pages
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Inject backend URL into config.js
+        run: |
+          # Set the backend (Oracle Cloud) URL. Configure it in GitHub:
+          #   Settings > Secrets and variables > Actions > Variables > UVUNWRAP_BACKEND_URL
+          BACKEND="${{ vars.UVUNWRAP_BACKEND_URL }}"
+          if [ -z "$BACKEND" ]; then
+            echo "warning: UVUNWRAP_BACKEND_URL not set; API stays same-origin"
+          else
+            printf 'window.UVUNWRAP_API = "%s";\n' "$BACKEND" > web/static/config.js
+          fi
+          cat web/static/config.js
+
+      - name: Deploy to GitHub Pages
+        uses: peaceiris/actions-gh-pages@v4
+        with:
+          github_token: ${{ secrets.GITHUB_TOKEN }}
+          publish_dir: ./web/static
+          publish_branch: gh-pages
+          enable_jekyll: false
+          force_orphan: true

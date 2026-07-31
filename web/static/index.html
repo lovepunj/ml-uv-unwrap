@@ -462,8 +462,10 @@
     </div>
   </div>
 
+  <script src="config.js"></script>
   <script type="module" src="app.js?v=2"></script>
   <script>
+    // API override loaded from config.js (set by GitHub Pages build / deployment)
     setTimeout(function() {
       if (!window.__mluvLoaded) {
         var vp = document.getElementById('viewport');

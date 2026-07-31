@@ -3,7 +3,8 @@ import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
 import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
 import { OBJLoader } from 'three/addons/loaders/OBJLoader.js';
 
-const API = '';
+// Backend base URL. Override via config.js: window.UVUNWRAP_API = 'https://...';
+const API = (typeof window !== 'undefined' && window.UVUNWRAP_API) || '';
 window.__mluvLoaded = true;
 console.log('[ML-UV] app.js module loaded successfully');
 
