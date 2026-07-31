@@ -185,12 +185,25 @@ class UVUnwrapPipeline:
         )
 
     def _init_partfield(self, checkpoint_path: str | Path | None):
-        """Initialize PartField feature extractor."""
+        """Initialize PartField feature extractor.
+
+        Degrades to ``None`` (geometric features) when PartField cannot
+        actually run here — e.g. ``lightning`` is not installed or the
+        checkpoint is missing.
+        """
         from ..models.partfield.extractor import PartFieldFeatureExtractor
-        self._partfield_extractor = PartFieldFeatureExtractor(
+        extractor = PartFieldFeatureExtractor(
             checkpoint_path=checkpoint_path,
             device=self.device,
         )
+        if extractor.available():
+            self._partfield_extractor = extractor
+        else:
+            print(
+                "PartField unavailable (lightning/checkpoint missing); "
+                "falling back to geometric features."
+            )
+            self._partfield_extractor = None
 
     def _init_classical(self):
         """Initialize classical unwrapper."""

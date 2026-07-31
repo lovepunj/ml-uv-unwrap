@@ -10,6 +10,9 @@ pyyaml==6.0.3
 rich==15.0.0
 pillow==10.4.0
 
+# Geometric chart decomposition fallback (multi-chart / detect modes)
+scikit-learn==1.6.1
+
 # Web
 fastapi==0.128.8
 uvicorn==0.39.0

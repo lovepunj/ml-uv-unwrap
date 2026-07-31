@@ -47,12 +47,33 @@ class PartFieldFeatureExtractor:
         self._checkpoint_path = checkpoint_path
         self._loaded = False
 
+    def available(self) -> bool:
+        """Return True if PartField can actually run on this install.
+
+        Cheap check — does not import heavy modules. Requires both the
+        ``lightning`` package and a model checkpoint to be present.
+        """
+        import importlib.util
+
+        if importlib.util.find_spec("lightning") is None:
+            return False
+        try:
+            return Path(self._find_checkpoint()).exists()
+        except FileNotFoundError:
+            return False
+
     def _ensure_loaded(self):
         """Lazy-load the model on first use."""
         if self._loaded:
             return
 
-        from .model_trainer_pvcnn_only_demo import Model
+        try:
+            from .model_trainer_pvcnn_only_demo import Model
+        except ImportError as e:
+            raise RuntimeError(
+                "PartField unavailable: the 'lightning' package is not installed. "
+                "PartUV/PartField modes fall back to geometric features."
+            ) from e
         from .config import setup, default_argument_parser
 
         parser = default_argument_parser()
