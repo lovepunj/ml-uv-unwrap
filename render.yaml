@@ -1,0 +1,17 @@
+# Render Blueprint — declarative deployment of the backend on the free tier.
+#   Web service: 512MB RAM / 0.1 CPU, Docker build from this repo.
+#   Note: free services spin down after 15 min idle (~30-60s cold start)
+#   and the filesystem is ephemeral (jobs/uploads lost on restart).
+#
+# Deploy: Render dashboard -> New -> Blueprint -> select this repo.
+
+services:
+  - type: web
+    name: ml-uv-unwrap
+    runtime: docker
+    repo: https://github.com/lovepunj/ml-uv-unwrap
+    branch: main
+    plan: free
+    dockerfilePath: ./Dockerfile
+    healthCheckPath: /api/health
+    autoDeploy: true

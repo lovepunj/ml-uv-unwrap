@@ -4,37 +4,43 @@ from __future__ import annotations
 
 import asyncio
 import shutil
+import threading
 import time
 import uuid
 from pathlib import Path
 
 import numpy as np
-import torch
-import trimesh
 from fastapi import FastAPI, File, Form, HTTPException, UploadFile
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse, JSONResponse
 from fastapi.staticfiles import StaticFiles
-
-# Low-spec deployments (e.g. Koyeb free: 0.1 vCPU / 512MB) oversubscribe badly
-# if torch spawns a thread pool. Limit to 1 thread and cap request sizes.
-torch.set_num_threads(1)
-try:
-    torch.set_num_interop_threads(1)
-except RuntimeError:
-    pass
 
 MAX_UPLOAD_BYTES = 50 * 1024 * 1024
 MAX_NUM_POINTS = 20000
 MAX_NUM_ITERATIONS = 3000
 MAX_NUM_CHARTS = 16
 
-from src.models import FlexParaUnwrapper
-from src.pipeline.preprocessor import MeshPreprocessor
-from src.pipeline.postprocessor import add_uv_margins, export_uv_mesh, pack_uv_charts
-from src.training.trainer import train_unsupervised
-from src.models.partfield.extractor import PartFieldFeatureExtractor
-from src.optimization.slim import slim_optimize
+_ml_lock = threading.Lock()
+_ml_ready = False
+
+
+def _import_torch():
+    """Import torch lazily so the server starts (and passes health checks)
+    fast on low-CPU free hosts, then pin torch to a single thread to avoid
+    thread-pool memory overhead on 512MB instances.
+    """
+    global _ml_ready
+    with _ml_lock:
+        if not _ml_ready:
+            import torch
+
+            torch.set_num_threads(1)
+            try:
+                torch.set_num_interop_threads(1)
+            except RuntimeError:
+                pass
+            _ml_ready = True
+        return torch
 
 app = FastAPI(title="ML UV Unwrap", version="0.1.0")
 
@@ -60,6 +66,8 @@ _partfield_extractor: PartFieldFeatureExtractor | None = None
 
 
 def get_model(num_charts: int = 1, use_partuv: bool = False) -> FlexParaUnwrapper:
+    from src.models import FlexParaUnwrapper
+
     global _model
     partfield_dim = 448 if use_partuv else 0
     if _model is None or _model.num_charts != num_charts or _model.partfield_dim != partfield_dim:
@@ -73,6 +81,8 @@ def get_model(num_charts: int = 1, use_partuv: bool = False) -> FlexParaUnwrappe
 
 
 def get_partfield_extractor() -> PartFieldFeatureExtractor | None:
+    from src.models.partfield.extractor import PartFieldFeatureExtractor
+
     global _partfield_extractor
     try:
         if _partfield_extractor is None:
@@ -95,6 +105,8 @@ def _postprocess_uvs(
     This is the universal postprocessing step for all UV methods.
     Alternates between distortion analysis, seam selection, and SLIM.
     """
+    from src.pipeline.postprocessor import add_uv_margins, pack_uv_charts
+
     if use_optcuts:
         from src.optimization.optcuts import optcuts_joint_optimize
         import trimesh as _tm
@@ -162,6 +174,7 @@ def _postprocess_uvs(
 
 def _run_unwrap_common(input_path, job, params):
     """Shared unwrap logic: runs pipeline, postprocesses with chart-aware packing, exports."""
+    from src.pipeline.postprocessor import export_uv_mesh
     from src.pipeline.unwrapper import UVUnwrapPipeline
 
     mode = params.get("method", "detect")
@@ -213,6 +226,8 @@ async def health():
 @app.post("/api/upload")
 async def upload_mesh(file: UploadFile = File(...)):
     """Upload a mesh file and return a job ID."""
+    import trimesh
+
     allowed = {".obj", ".ply", ".stl", ".glb", ".gltf", ".off", ".fbx"}
     suffix = Path(file.filename or "mesh.obj").suffix.lower()
     if suffix not in allowed:
@@ -410,6 +425,7 @@ async def _run_unwrap(job_id: str):
 def _run_classical_unwrap(input_path: Path, job: dict, params: dict) -> dict:
     """Run classical unwrapping (xatlas/LSCM/ABF)."""
     from src.pipeline.classical_unwrapper import ClassicalUnwrapper
+    from src.pipeline.postprocessor import export_uv_mesh
 
     method = params.get("classical_method", "xatlas")
     unwrapper = ClassicalUnwrapper(method=method)
@@ -455,6 +471,7 @@ def _run_classical_unwrap(input_path: Path, job: dict, params: dict) -> dict:
 
 def _run_hybrid_unwrap(input_path: Path, job: dict, params: dict) -> dict:
     """Run hybrid unwrapping: classical init + ML refinement."""
+    from src.pipeline.postprocessor import export_uv_mesh
     from src.pipeline.unwrapper import UVUnwrapPipeline
 
     pipeline = UVUnwrapPipeline(
@@ -506,6 +523,11 @@ def _run_hybrid_unwrap(input_path: Path, job: dict, params: dict) -> dict:
 
 def _run_ml_unwrap(input_path: Path, job: dict, params: dict, use_partuv: bool) -> dict:
     """Run ML-based unwrapping (standard or PartUV)."""
+    torch = _import_torch()
+    from src.pipeline.postprocessor import export_uv_mesh
+    from src.pipeline.preprocessor import MeshPreprocessor
+    from src.training.trainer import train_unsupervised
+
     preprocessor = MeshPreprocessor(
         num_points=params["num_points"], device="cpu"
     )
@@ -631,6 +653,7 @@ def _run_ml_unwrap(input_path: Path, job: dict, params: dict, use_partuv: bool) 
 
 def _run_multi_chart_unwrap(input_path: Path, job: dict, params: dict) -> dict:
     """Run multi-chart unwrapping: PartField decomposition + per-chart unwrapping."""
+    from src.pipeline.postprocessor import export_uv_mesh
     from src.pipeline.unwrapper import UVUnwrapPipeline
 
     pipeline = UVUnwrapPipeline(
@@ -679,6 +702,7 @@ def _run_multi_chart_unwrap(input_path: Path, job: dict, params: dict) -> dict:
 
 def _run_pipeline_unwrap(input_path: Path, job: dict, params: dict, mode: str) -> dict:
     """Generic pipeline-based unwrapping for new modes."""
+    from src.pipeline.postprocessor import export_uv_mesh
     from src.pipeline.unwrapper import UVUnwrapPipeline
 
     pipeline = UVUnwrapPipeline(
@@ -737,6 +761,7 @@ def _run_pipeline_unwrap(input_path: Path, job: dict, params: dict, mode: str) -
 
 def _run_detect_unwrap(input_path: Path, job: dict, params: dict) -> dict:
     """Auto-detect mesh type and unwrap with best strategy."""
+    from src.pipeline.postprocessor import export_uv_mesh
     from src.pipeline.unwrapper import UVUnwrapPipeline
 
     pipeline = UVUnwrapPipeline(
@@ -1086,6 +1111,8 @@ def _parse_obj(path: Path):
 @app.get("/api/cut-edges/{job_id}")
 async def get_cut_edges(job_id: str):
     """Get the edge graph of the mesh for seam cutting UI."""
+    import trimesh
+
     if job_id not in jobs:
         raise HTTPException(404, "Job not found")
     job = jobs[job_id]
@@ -1155,6 +1182,9 @@ async def apply_cut_edges(
     edge_indices: comma-separated list of edge indices to cut
     method: re-unwrap method (lscm, xatlas, harmonic, arap, conformal)
     """
+    import trimesh
+    from src.pipeline.postprocessor import export_uv_mesh
+
     if job_id not in jobs:
         raise HTTPException(404, "Job not found")
     job = jobs[job_id]
@@ -1379,6 +1409,9 @@ async def join_uv_islands(
     island_ids: comma-separated island IDs to join
     method: re-unwrap method for the joined chart
     """
+    import trimesh
+    from src.pipeline.postprocessor import export_uv_mesh
+
     if job_id not in jobs:
         raise HTTPException(404, "Job not found")
     job = jobs[job_id]

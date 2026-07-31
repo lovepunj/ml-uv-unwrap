@@ -17,7 +17,7 @@ jobs:
 
       - name: Inject backend URL into config.js
         run: |
-          # Set the backend (Oracle Cloud) URL. Configure it in GitHub:
+          # Set the backend (Render) URL. Configure it in GitHub:
           #   Settings > Secrets and variables > Actions > Variables > UVUNWRAP_BACKEND_URL
           BACKEND="${{ vars.UVUNWRAP_BACKEND_URL }}"
           if [ -z "$BACKEND" ]; then
