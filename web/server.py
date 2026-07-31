@@ -16,6 +16,19 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse, JSONResponse
 from fastapi.staticfiles import StaticFiles
 
+# Low-spec deployments (e.g. Koyeb free: 0.1 vCPU / 512MB) oversubscribe badly
+# if torch spawns a thread pool. Limit to 1 thread and cap request sizes.
+torch.set_num_threads(1)
+try:
+    torch.set_num_interop_threads(1)
+except RuntimeError:
+    pass
+
+MAX_UPLOAD_BYTES = 50 * 1024 * 1024
+MAX_NUM_POINTS = 20000
+MAX_NUM_ITERATIONS = 3000
+MAX_NUM_CHARTS = 16
+
 from src.models import FlexParaUnwrapper
 from src.pipeline.preprocessor import MeshPreprocessor
 from src.pipeline.postprocessor import add_uv_margins, export_uv_mesh, pack_uv_charts
@@ -213,6 +226,10 @@ async def upload_mesh(file: UploadFile = File(...)):
     with open(save_path, "wb") as f:
         shutil.copyfileobj(file.file, f)
 
+    if save_path.stat().st_size > MAX_UPLOAD_BYTES:
+        shutil.rmtree(job_dir, ignore_errors=True)
+        raise HTTPException(413, f"File too large (max {MAX_UPLOAD_BYTES // (1024 * 1024)} MB)")
+
     # Quick mesh info
     try:
         mesh = trimesh.load(save_path, force="mesh")
@@ -268,9 +285,9 @@ async def start_unwrap(
     job["status"] = "processing"
     job["progress"] = 0
     job["params"] = {
-        "num_iterations": num_iterations,
-        "num_points": num_points,
-        "num_charts": num_charts,
+        "num_iterations": min(max(num_iterations, 1), MAX_NUM_ITERATIONS),
+        "num_points": min(max(num_points, 100), MAX_NUM_POINTS),
+        "num_charts": min(max(num_charts, 1), MAX_NUM_CHARTS),
         "lr": lr,
         "mode": mode,
         "classical_method": classical_method,
@@ -300,9 +317,9 @@ async def start_unwrap_partuv(
     job["progress"] = 0
     job["use_partuv"] = True
     job["params"] = {
-        "num_iterations": num_iterations,
-        "num_points": num_points,
-        "num_charts": num_charts,
+        "num_iterations": min(max(num_iterations, 1), MAX_NUM_ITERATIONS),
+        "num_points": min(max(num_points, 100), MAX_NUM_POINTS),
+        "num_charts": min(max(num_charts, 1), MAX_NUM_CHARTS),
         "lr": lr,
         "mode": "partuv",
     }

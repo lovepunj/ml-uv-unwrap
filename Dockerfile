@@ -24,5 +24,8 @@ COPY . .
 RUN if [ -f "model_objaverse.ckpt" ]; then echo "PartField checkpoint found"; else \
     echo "PartField checkpoint not bundled (download manually to enable partuv modes)"; fi
 
-EXPOSE 7860
-CMD ["uvicorn", "web.server:app", "--host", "0.0.0.0", "--port", "7860"]
+EXPOSE 8080
+CMD ["sh", "-c", "uvicorn web.server:app --host 0.0.0.0 --port ${PORT:-8080}"]
+
+HEALTHCHECK --interval=30s --timeout=10s --start-period=120s --retries=3 \
+  CMD python -c "import os,urllib.request; urllib.request.urlopen('http://127.0.0.1:' + os.getenv('PORT', '8080') + '/api/health')" || exit 1

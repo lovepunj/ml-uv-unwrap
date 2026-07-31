@@ -1,0 +1,32 @@
+name: Deploy backend to Koyeb
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    # Skip until the KOYEB_API_TOKEN secret is configured (see README)
+    if: ${{ secrets.KOYEB_API_TOKEN != '' }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Install and configure Koyeb CLI
+        uses: koyeb-community/koyeb-actions@v2
+        with:
+          api_token: ${{ secrets.KOYEB_API_TOKEN }}
+
+      - name: Build and deploy to Koyeb (free instance)
+        uses: koyeb/action-git-deploy@v1
+        with:
+          app-name: ml-uv-unwrap
+          service-name: web
+          service-instance-type: free
+          git-builder: docker
+          git-docker-dockerfile: Dockerfile
+          service-env: PORT=8080
+          service-ports: "8080:http"
+          service-routes: "/:8080"
