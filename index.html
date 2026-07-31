@@ -1,0 +1,482 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>ML UV Unwrap</title>
+  <link rel="stylesheet" href="style.css?v=2">
+  <script type="importmap">
+  {
+    "imports": {
+      "three": "./lib/three/three.module.js",
+      "three/addons/": "./lib/three/examples/jsm/"
+    }
+  }
+  </script>
+</head>
+<body>
+  <div class="app">
+    <!-- Header -->
+    <header class="header">
+      <div class="header-left">
+        <svg class="logo" viewBox="0 0 24 24" width="28" height="28" fill="none" stroke="currentColor" stroke-width="2">
+          <path d="M12 2L2 7l10 5 10-5-10-5z"/>
+          <path d="M2 17l10 5 10-5"/>
+          <path d="M2 12l10 5 10-5"/>
+        </svg>
+        <h1>ML UV Unwrap</h1>
+      </div>
+      <div class="header-right">
+        <span class="badge">v0.1</span>
+      </div>
+    </header>
+
+    <div class="main">
+      <!-- Sidebar -->
+      <aside class="sidebar" id="sidebar">
+        <!-- Upload Zone -->
+        <div class="panel" id="upload-panel">
+          <div class="panel-header">
+            <h2>Input Mesh</h2>
+          </div>
+          <div class="drop-zone" id="drop-zone">
+            <svg viewBox="0 0 24 24" width="40" height="40" fill="none" stroke="currentColor" stroke-width="1.5">
+              <path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4"/>
+              <polyline points="17 8 12 3 7 8"/>
+              <line x1="12" y1="3" x2="12" y2="15"/>
+            </svg>
+            <p>Drop mesh here or <span class="browse-link">browse</span></p>
+            <p class="drop-hint">OBJ, FBX, GLTF, USDZ, PLY, STL</p>
+            <input type="file" id="file-input" accept=".obj,.fbx,.glb,.gltf,.usdz,.usda,.usdc,.ply,.stl,.off" hidden>
+          </div>
+          <div class="mesh-info" id="mesh-info" hidden>
+            <div class="info-row">
+              <span class="info-label">File</span>
+              <span class="info-value" id="info-filename">-</span>
+            </div>
+            <div class="info-row">
+              <span class="info-label">Vertices</span>
+              <span class="info-value" id="info-verts">-</span>
+            </div>
+            <div class="info-row">
+              <span class="info-label">Faces</span>
+              <span class="info-value" id="info-faces">-</span>
+            </div>
+            <div class="info-row">
+              <span class="info-label">Bounds</span>
+              <span class="info-value" id="info-bounds">-</span>
+            </div>
+          </div>
+        </div>
+
+        <!-- Model Preview -->
+        <div class="panel" id="preview-panel" hidden>
+          <div class="panel-header">
+            <h2>Model Preview</h2>
+          </div>
+          <div class="preview-btns-grid">
+            <button class="mat-btn" id="mat-default" title="Original material">
+              <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2">
+                <path d="M12 2a10 10 0 100 20 10 10 0 000-20z"/><path d="M12 6v6l4 2"/>
+              </svg>
+            </button>
+            <button class="mat-btn active" id="mat-solid" title="Solid">
+              <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/></svg>
+            </button>
+            <button class="mat-btn" id="mat-wireframe" title="Wireframe">
+              <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2"><polygon points="12,2 22,20 2,20"/></svg>
+            </button>
+            <button class="mat-btn" id="mat-checker" title="Checker">
+              <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2">
+                <rect x="3" y="3" width="8" height="8"/><rect x="13" y="13" width="8" height="8"/>
+                <rect x="3" y="13" width="8" height="8" fill="currentColor" opacity="0.3"/><rect x="13" y="3" width="8" height="8" fill="currentColor" opacity="0.3"/>
+              </svg>
+            </button>
+            <button class="mat-btn" id="mat-normal" title="Normals">
+              <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 20V4M8 8l4-4 4 4"/></svg>
+            </button>
+            <button class="mat-btn" id="mat-ao" title="Ambient Occlusion">
+              <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2">
+                <circle cx="12" cy="12" r="10"/><path d="M12 2a10 10 0 010 20" fill="currentColor" opacity="0.4"/>
+              </svg>
+            </button>
+            <button class="mat-btn" id="mat-distortion" title="UV Distortion Heatmap">
+              <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2">
+                <path d="M2 12C2 6 12 2 12 10s10 4 10 10"/><path d="M2 12c0 6 10 10 10 2s10-2 10-10" opacity="0.4"/>
+              </svg>
+            </button>
+            <button class="mat-btn" id="mat-ao-heat" title="AO Heatmap">
+              <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2">
+                <circle cx="12" cy="12" r="10"/><circle cx="12" cy="12" r="5" fill="currentColor" opacity="0.3"/><circle cx="12" cy="12" r="1" fill="currentColor" opacity="0.6"/>
+              </svg>
+            </button>
+            <button class="mat-btn" id="mat-curvature" title="Curvature">
+              <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 20Q12 2 20 20"/><path d="M4 20Q12 8 20 20" opacity="0.4"/></svg>
+            </button>
+            <button class="mat-btn" id="mat-chart" title="Chart Coloring">
+              <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2">
+                <rect x="2" y="2" width="9" height="9" rx="1" fill="currentColor" opacity="0.3"/><rect x="13" y="2" width="9" height="9" rx="1" fill="currentColor" opacity="0.6"/>
+                <rect x="2" y="13" width="9" height="9" rx="1" fill="currentColor" opacity="0.8"/><rect x="13" y="13" width="9" height="9" rx="1" fill="currentColor" opacity="0.15"/>
+              </svg>
+            </button>
+            <button class="mat-btn" id="mat-texture" title="Load texture">
+              <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2">
+                <rect x="3" y="3" width="18" height="18" rx="2"/><circle cx="8" cy="8" r="1.5" fill="currentColor" opacity="0.5"/><path d="M3 16l5-5 4 4 3-3 6 6v1a2 2 0 01-2 2H5a2 2 0 01-2-2z" fill="currentColor" opacity="0.2"/>
+              </svg>
+            </button>
+            <button class="mat-btn" id="mat-texture-toggle" title="Toggle texture preview" hidden>
+              <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2">
+                <rect x="3" y="3" width="18" height="18" rx="2"/><path d="M3 3l18 18"/><path d="M3 16l5-5 4 4 3-3 6 6" opacity="0.6"/>
+              </svg>
+            </button>
+            <input type="file" id="texture-input" accept="image/*" hidden>
+          </div>
+          <div class="preview-btns-grid">
+            <button class="tool-btn" id="seam-toggle" title="Seam lines">
+              <svg viewBox="0 0 24 24" width="12" height="12" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 4l16 16M4 20L20 4"/></svg>
+            </button>
+            <button class="tool-btn" id="seam-graph-toggle" title="Seam network graph">
+              <svg viewBox="0 0 24 24" width="12" height="12" fill="none" stroke="currentColor" stroke-width="2">
+                <circle cx="6" cy="6" r="2.5"/><circle cx="18" cy="6" r="2.5"/><circle cx="12" cy="18" r="2.5"/>
+                <line x1="6" y1="6" x2="18" y2="6"/><line x1="6" y1="6" x2="12" y2="18"/><line x1="18" y1="6" x2="12" y2="18"/>
+              </svg>
+            </button>
+            <button class="tool-btn" id="measure-toggle" title="Measure distances">
+              <svg viewBox="0 0 24 24" width="12" height="12" fill="none" stroke="currentColor" stroke-width="2"><path d="M2 12h4M18 12h4M6 8v8M18 8v8"/></svg>
+            </button>
+            <button class="tool-btn" id="normals-toggle" title="Vertex normals">
+              <svg viewBox="0 0 24 24" width="12" height="12" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 20V4M8 8l4-4 4 4"/></svg>
+            </button>
+            <button class="tool-btn" id="clip-toggle" title="Clipping planes">
+              <svg viewBox="0 0 24 24" width="12" height="12" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 3h18v18H3z" opacity="0.3"/><path d="M3 12h18"/></svg>
+            </button>
+            <button class="tool-btn" id="explode-toggle" title="Exploded view">
+              <svg viewBox="0 0 24 24" width="12" height="12" fill="none" stroke="currentColor" stroke-width="2">
+                <rect x="1" y="1" width="8" height="8" rx="1"/><rect x="15" y="1" width="8" height="8" rx="1"/>
+                <rect x="1" y="15" width="8" height="8" rx="1"/><rect x="15" y="15" width="8" height="8" rx="1"/>
+              </svg>
+            </button>
+            <button class="tool-btn" id="pointcloud-toggle" title="Point cloud">
+              <svg viewBox="0 0 24 24" width="12" height="12" fill="none" stroke="currentColor" stroke-width="2">
+                <circle cx="5" cy="5" r="1.5"/><circle cx="12" cy="3" r="1.5"/><circle cx="19" cy="5" r="1.5"/>
+                <circle cx="3" cy="12" r="1.5"/><circle cx="8" cy="11" r="1.5"/><circle cx="14" cy="12" r="1.5"/><circle cx="20" cy="11" r="1.5"/>
+                <circle cx="5" cy="19" r="1.5"/><circle cx="12" cy="21" r="1.5"/><circle cx="19" cy="19" r="1.5"/>
+              </svg>
+            </button>
+            <button class="tool-btn" id="dualpane-toggle" title="Dual pane">
+              <svg viewBox="0 0 24 24" width="12" height="12" fill="none" stroke="currentColor" stroke-width="2"><rect x="2" y="2" width="8" height="20" rx="1"/><rect x="14" y="2" width="8" height="20" rx="1"/></svg>
+            </button>
+            <button class="tool-btn" id="cut-seam-toggle" title="Cut seams (click edges to select)">
+              <svg viewBox="0 0 24 24" width="12" height="12" fill="none" stroke="currentColor" stroke-width="2">
+                <path d="M6 6l12 12"/><circle cx="6" cy="6" r="2"/><circle cx="18" cy="18" r="2"/>
+                <path d="M14 4h6v6" stroke-dasharray="2 2"/>
+              </svg>
+            </button>
+            <button class="tool-btn" id="join-island-toggle" title="Join UV islands (click to select)">
+              <svg viewBox="0 0 24 24" width="12" height="12" fill="none" stroke="currentColor" stroke-width="2">
+                <circle cx="7" cy="12" r="4"/><circle cx="17" cy="12" r="4"/><path d="M11 12h2" stroke-width="3"/>
+              </svg>
+            </button>
+          </div>
+          <!-- Cut/Join action panel -->
+          <div id="cut-join-panel" style="display:none; margin-top:6px;">
+            <div style="background:var(--bg-secondary);border-radius:6px;padding:6px 8px;display:flex;flex-direction:column;gap:4px;">
+              <div id="cut-info" style="font-size:11px;color:var(--text-secondary);"></div>
+              <div style="display:flex;gap:4px;">
+                <select id="cut-method-select" class="param-select" style="flex:1;font-size:10px;padding:2px 4px;">
+                  <option value="lscm">LSCM</option>
+                  <option value="xatlas" selected>xatlas</option>
+                  <option value="harmonic">Harmonic</option>
+                  <option value="arap">ARAP</option>
+                  <option value="conformal">Conformal</option>
+                </select>
+                <button id="cut-apply-btn" class="btn btn-primary" style="font-size:10px;padding:2px 6px;">Cut</button>
+                <button id="cut-clear-btn" class="btn btn-secondary" style="font-size:10px;padding:2px 6px;">Clear</button>
+              </div>
+              <div id="join-info" style="font-size:11px;color:var(--text-secondary);"></div>
+              <div style="display:flex;gap:4px;">
+                <button id="join-apply-btn" class="btn btn-primary" style="font-size:10px;padding:2px 6px;">Join Selected</button>
+                <button id="join-clear-btn" class="btn btn-secondary" style="font-size:10px;padding:2px 6px;">Clear</button>
+              </div>
+            </div>
+          </div>
+          <div class="preview-info" id="preview-info">
+            <div class="info-row">
+              <span class="info-label">Faces</span>
+              <span class="info-value" id="prev-faces">-</span>
+            </div>
+            <div class="info-row">
+              <span class="info-label">Edges</span>
+              <span class="info-value" id="prev-edges">-</span>
+            </div>
+          </div>
+          <div class="preview-btns-grid">
+            <button class="tool-btn" id="screenshot-btn" title="Screenshot">
+              <svg viewBox="0 0 24 24" width="12" height="12" fill="none" stroke="currentColor" stroke-width="2">
+                <rect x="3" y="5" width="18" height="14" rx="2"/><circle cx="12" cy="12" r="3.5"/><path d="M8 5V3h8v2"/>
+              </svg>
+            </button>
+            <button class="tool-btn" id="reset-camera-btn" title="Reset Camera">
+              <svg viewBox="0 0 24 24" width="12" height="12" fill="none" stroke="currentColor" stroke-width="2">
+                <path d="M1 4v6h6M23 20v-6h-6"/>
+                <path d="M20.49 9A9 9 0 005.64 5.64L1 10m22 4l-4.64 4.36A9 9 0 013.51 15"/>
+              </svg>
+            </button>
+          </div>
+        </div>
+
+        <!-- Parameters -->
+        <div class="panel" id="params-panel">
+          <div class="panel-header">
+            <h2>Parameters</h2>
+          </div>
+          <div class="param-group">
+            <label class="param-label">
+              <span>Method</span>
+            </label>
+            <select id="method-select" class="param-select">
+              <option value="detect">Auto-Detect (Recommended)</option>
+              <option value="multi_chart">Multi-Chart (PartField)</option>
+              <option value="partuv">PartUV (Semantic)</option>
+              <option value="artuv">ArtUV (ICLR 2026)</option>
+              <option value="ml">ML (FlexPara)</option>
+              <option value="flatten_anything">Flatten Anything (FAM)</option>
+              <option value="mesh_tailor">MeshTailor (Graph)</option>
+              <option value="seam_crafter">SeamCrafter (DPO)</option>
+              <option value="uv_segnet">UVSegNet (Man-Made)</option>
+              <option value="quality_select">Quality Select (Auto)</option>
+              <option value="classical-xatlas">Classical (xatlas)</option>
+              <option value="classical-lscm">Classical (LSCM)</option>
+              <option value="classical-abf">Classical (ABF++)</option>
+              <option value="classical-arap">Classical (ARAP)</option>
+              <option value="classical-harmonic">Classical (Harmonic)</option>
+              <option value="classical-conformal">Classical (Conformal)</option>
+              <option value="classical-graph_cuts">Classical (Graph Cuts)</option>
+              <option value="classical-hilbert">Classical (Hilbert)</option>
+              <option value="voronoi_disks">Voronoi Disks (STAG 2025)</option>
+              <option value="instant_meshes">Instant Meshes (Grid)</option>
+              <option value="libuvula">libUvula (Ultimaker)</option>
+              <option value="ffhq_uv">FFHQ-UV (Face)</option>
+              <option value="hybrid">Hybrid (Classical + ML)</option>
+            </select>
+          </div>
+          <div class="param-group">
+            <label class="param-label">
+              <span>Iterations</span>
+              <span class="param-value" id="iter-value">500</span>
+            </label>
+            <input type="range" id="iterations" min="100" max="3000" step="100" value="500">
+          </div>
+          <div class="param-group">
+            <label class="param-label">
+              <span>Sample Points</span>
+              <span class="param-value" id="points-value">3000</span>
+            </label>
+            <input type="range" id="num-points" min="1000" max="20000" step="1000" value="3000">
+          </div>
+          <div class="param-group">
+            <label class="param-label">
+              <span>UV Charts</span>
+              <span class="param-value" id="charts-value">1</span>
+            </label>
+            <input type="range" id="num-charts" min="1" max="8" step="1" value="1">
+          </div>
+          <div class="param-group">
+            <label class="param-label">
+              <span>Learning Rate</span>
+              <span class="param-value" id="lr-value">1e-3</span>
+            </label>
+            <input type="range" id="lr" min="-5" max="-2" step="0.1" value="-3">
+          </div>
+        </div>
+
+        <!-- Actions -->
+        <div class="panel" id="actions-panel">
+          <button class="btn btn-primary" id="unwrap-btn" disabled>
+            <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2">
+              <polygon points="5 3 19 12 5 21 5 3"/>
+            </svg>
+            Unwrap
+          </button>
+          <button class="btn btn-secondary" id="download-btn" hidden>
+            <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2">
+              <path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4"/>
+              <polyline points="7 10 12 15 17 10"/>
+              <line x1="12" y1="15" x2="12" y2="3"/>
+            </svg>
+            Download OBJ
+          </button>
+        </div>
+
+        <!-- Progress -->
+        <div class="panel" id="progress-panel" hidden>
+          <div class="panel-header">
+            <h2>Processing</h2>
+          </div>
+          <div class="progress-bar">
+            <div class="progress-fill" id="progress-fill"></div>
+          </div>
+          <p class="progress-text" id="progress-text">Starting...</p>
+          <div class="loss-display" id="loss-display" hidden>
+            <div class="loss-row">
+              <span>Total</span>
+              <span id="loss-total">-</span>
+            </div>
+            <div class="loss-row">
+              <span>Cycle</span>
+              <span id="loss-cycle">-</span>
+            </div>
+            <div class="loss-row">
+              <span>Chamfer</span>
+              <span id="loss-chamfer">-</span>
+            </div>
+          </div>
+        </div>
+
+        <!-- Results -->
+        <div class="panel" id="results-panel" hidden>
+          <div class="panel-header">
+            <h2>Results</h2>
+          </div>
+          <div class="result-stats" id="result-stats">
+            <div class="info-row">
+              <span class="info-label">UV Vertices</span>
+              <span class="info-value" id="stat-uv-verts">-</span>
+            </div>
+            <div class="info-row" id="partuv-stats" hidden>
+              <span class="info-label">Semantic Parts</span>
+              <span class="info-value" id="stat-parts">-</span>
+            </div>
+          </div>
+          <div class="param-group">
+            <label class="param-label">
+              <span>UV Map Size</span>
+            </label>
+            <select id="uv-size" class="param-select">
+              <option value="512">512 x 512</option>
+              <option value="1024">1024 x 1024</option>
+              <option value="2048" selected>2048 x 2048</option>
+              <option value="4096">4096 x 4096</option>
+            </select>
+          </div>
+          <div class="view-toggle">
+            <button class="toggle-btn active" id="toggle-3d">3D View</button>
+            <button class="toggle-btn" id="toggle-uv">UV Map</button>
+          </div>
+          <button class="btn btn-secondary" id="download-uv-btn" hidden>
+            <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2">
+              <rect x="3" y="3" width="18" height="18" rx="2"/>
+              <path d="M3 15l4-4a2 2 0 012.8 0L15 16.2"/>
+              <path d="M14 14l1-1a2 2 0 012.8 0L21 16.2"/>
+              <circle cx="8.5" cy="8.5" r="1.5"/>
+            </svg>
+            Download UV Map (PNG)
+          </button>
+        </div>
+      </aside>
+
+      <!-- 3D Viewport -->
+      <div class="viewport" id="viewport">
+        <div class="viewport-tabs">
+          <button class="viewport-tab active" id="vp-tab-3d">3D</button>
+          <button class="viewport-tab" id="vp-tab-uv">UV Map</button>
+        </div>
+        <canvas id="three-canvas"></canvas>
+        <div class="uv-viewport-canvas-wrap" id="uv-viewport-wrap" hidden>
+          <canvas id="uv-viewport-canvas"></canvas>
+          <div class="uv-viewport-controls">
+            <div class="preview-btns-grid uv-mode-btns">
+              <button class="mat-btn active" id="uv-mode-wire" title="Wireframe">
+                <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2"><polygon points="12,2 22,20 2,20"/></svg>
+              </button>
+              <button class="mat-btn" id="uv-mode-fill" title="Filled">
+                <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="18" height="18" rx="2" fill="currentColor" opacity="0.3"/></svg>
+              </button>
+              <button class="mat-btn" id="uv-mode-distortion" title="Distortion heatmap">
+                <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2">
+                  <path d="M2 12C2 6 12 2 12 10s10 4 10 10"/><path d="M2 12c0 6 10 10 10 2s10-2 10-10" opacity="0.4"/>
+                </svg>
+              </button>
+              <button class="mat-btn" id="uv-mode-chart" title="Chart coloring">
+                <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2">
+                  <rect x="2" y="2" width="9" height="9" rx="1" fill="currentColor" opacity="0.3"/><rect x="13" y="13" width="9" height="9" rx="1" fill="currentColor" opacity="0.6"/>
+                </svg>
+              </button>
+              <button class="mat-btn" id="uv-mode-seam" title="Seam lines">
+                <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 4l16 16M4 20L20 4"/></svg>
+              </button>
+              <button class="mat-btn" id="uv-mode-coverage" title="UV coverage">
+                <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2">
+                  <rect x="3" y="3" width="18" height="18" rx="2" stroke-dasharray="3 2"/>
+                  <rect x="5" y="5" width="8" height="8" rx="1" fill="currentColor" opacity="0.4"/>
+                </svg>
+              </button>
+            </div>
+          </div>
+          <div class="uv-viewport-metrics" id="uv-viewport-metrics">
+            <span id="uv-charts">-</span> charts | <span id="uv-coverage">-</span> coverage | dist <span id="uv-avg-dist">-</span> / <span id="uv-max-dist">-</span> | seam <span id="uv-seam-len">-</span> | area <span id="uv-area">-</span>
+          </div>
+        </div>
+        <div class="viewport-overlay" id="viewport-empty">
+          <svg viewBox="0 0 24 24" width="64" height="64" fill="none" stroke="currentColor" stroke-width="1">
+            <path d="M12 2L2 7l10 5 10-5-10-5z"/>
+            <path d="M2 17l10 5 10-5"/>
+            <path d="M2 12l10 5 10-5"/>
+          </svg>
+          <p>Upload a mesh to begin</p>
+        </div>
+        <!-- UV Map overlay -->
+        <div class="uv-overlay" id="uv-overlay" hidden>
+          <img id="uv-image" alt="UV Map">
+        </div>
+        <!-- Measurement overlay -->
+        <div class="measure-overlay" id="measure-overlay" hidden>
+          <div class="measure-info">
+            <span id="measure-distance">Click two points to measure</span>
+          </div>
+        </div>
+        <!-- Viewport HUD -->
+        <div class="viewport-hud" id="viewport-hud">
+          <span id="hud-verts">-</span> verts | <span id="hud-faces">-</span> faces | <span id="hud-fps">-</span> FPS
+        </div>
+        <!-- Color Legend -->
+        <div class="color-legend" id="color-legend" hidden>
+          <div class="legend-title" id="legend-title">Distortion</div>
+          <div class="legend-bar" id="legend-bar"></div>
+          <div class="legend-labels">
+            <span id="legend-min">0</span>
+            <span id="legend-max">1</span>
+          </div>
+        </div>
+        <!-- Clipping Plane Controls -->
+        <div class="clip-controls" id="clip-controls" hidden>
+          <label>X: <input type="range" id="clip-x" min="-100" max="100" value="100"></label>
+          <label>Y: <input type="range" id="clip-y" min="-100" max="100" value="100"></label>
+          <label>Z: <input type="range" id="clip-z" min="-100" max="100" value="100"></label>
+        </div>
+        <!-- Explode Controls -->
+        <div class="explode-controls" id="explode-controls" hidden>
+          <label>Spread: <input type="range" id="explode-amount" min="0" max="100" value="30"></label>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <script src="config.js"></script>
+  <script type="module" src="app.js?v=2"></script>
+  <script>
+    // API override loaded from config.js (set by GitHub Pages build / deployment)
+    setTimeout(function() {
+      if (!window.__mluvLoaded) {
+        var vp = document.getElementById('viewport');
+        if (vp) {
+          var err = document.createElement('div');
+          err.style.cssText = 'position:absolute;inset:0;display:flex;align-items:center;justify-content:center;color:#ef4444;font-size:13px;text-align:center;padding:20px;z-index:99;pointer-events:none;';
+          err.innerHTML = 'WebGL failed to initialize. Check browser console.<br>Try Chrome/Firefox and ensure hardware acceleration is enabled.';
+          vp.appendChild(err);
+        }
+      }
+    }, 3000);
+  </script>
+</body>
+</html>
