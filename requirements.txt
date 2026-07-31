@@ -1,0 +1,14 @@
+# Core ML / math
+numpy>=1.24
+scipy>=1.10
+trimesh>=4.0
+einops>=0.6
+xatlas>=0.0.9
+igl>=2.4.0
+pyyaml>=6.0
+rich>=13.0
+
+# Web
+fastapi>=0.110
+uvicorn>=0.29
+python-multipart>=0.0.9

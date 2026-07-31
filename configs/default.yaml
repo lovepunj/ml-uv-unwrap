@@ -1,0 +1,39 @@
+model:
+  num_charts: 1
+  point_dim: 3
+  hidden_dim: 256
+  num_layers: 8
+  positional_encoding:
+    num_freqs: 6
+    include_input: true
+
+training:
+  mode: unsupervised  # per-mesh optimization
+  num_points: 10000
+  num_iterations: 1600
+  lr: 1e-3
+  scheduler:
+    type: cosine
+    T_max: 1600
+    eta_min: 1e-5
+  weights:
+    cycle_3d: 1.0
+    cycle_2d: 1.0
+    distortion: 0.1
+    chamfer: 0.5
+    repulsion: 0.1
+
+data:
+  sample_method: poisson  # uniform | poisson | face_area
+  normalize: true
+  augmentations:
+    random_rotation: true
+    random_scale: false
+    add_noise: false
+    noise_std: 0.001
+
+postprocessing:
+  packing:
+    method: xatlas  # xatlas | greedy
+    padding: 0.01
+  export_format: obj

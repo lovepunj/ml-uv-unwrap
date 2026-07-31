@@ -1,0 +1,41 @@
+# Python
+__pycache__/
+*.py[cod]
+*.egg-info/
+*.egg
+.eggs/
+.pytest_cache/
+.ruff_cache/
+.venv/
+venv/
+env/
+
+# Model weights (too large for git, add via LFS or download at build)
+*.ckpt
+*.pt
+*.pth
+!src/models/partfield/**/*.pt
+
+# Runtime data
+web/uploads/
+web/results/
+uploads/
+results/
+
+# Checkpoints / training outputs
+checkpoints/
+checkpoints_supervised/
+*.log
+
+# OS
+.DS_Store
+Thumbs.db
+
+# IDE
+.idea/
+.vscode/
+*.swp
+
+# HF Space
+cache/
+.gitattributes.lfs
