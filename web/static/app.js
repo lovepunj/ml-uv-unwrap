@@ -209,6 +209,32 @@ fileInput.addEventListener('change', () => {
   if (fileInput.files.length) uploadFile(fileInput.files[0]);
 });
 
+async function readErrorBody(res, fallback) {
+  // Never call res.json() blindly: a non-JSON body (e.g. a proxy/HTML
+  // error page) throws a cryptic "string did not match expected pattern"
+  // SyntaxError in Safari. Read as text and parse defensively instead.
+  let text = '';
+  try {
+    text = await res.text();
+  } catch (e) {
+    return `${fallback}: network error`;
+  }
+  let detail = null;
+  try {
+    const json = JSON.parse(text);
+    if (json && typeof json.detail === 'string') detail = json.detail;
+    else if (json && Array.isArray(json.detail) && json.detail.length) {
+      detail = json.detail.map(d => (d && d.msg) || '').filter(Boolean).join('; ');
+    }
+  } catch (e) {
+    /* body is not JSON */
+  }
+  if (detail) return detail;
+  const snippet = text.replace(/\s+/g, ' ').trim().slice(0, 140);
+  if (snippet) return `${fallback}: server returned HTTP ${res.status} (${snippet})`;
+  return `${fallback}: server error (HTTP ${res.status})`;
+}
+
 async function uploadFile(file) {
   // Reset state
   resetState();
@@ -219,8 +245,7 @@ async function uploadFile(file) {
   try {
     const res = await fetch(`${API}/api/upload`, { method: 'POST', body: form });
     if (!res.ok) {
-      const err = await res.json();
-      alert(err.detail || 'Upload failed');
+      alert(await readErrorBody(res, 'Upload failed'));
       return;
     }
     const data = await res.json();
@@ -244,7 +269,7 @@ async function uploadFile(file) {
 
   } catch (err) {
     console.error('Upload error:', err);
-    alert('Upload failed: ' + err.message);
+    alert('Upload failed: ' + ((err && err.message) || 'unknown error'));
   }
 }
 
@@ -424,8 +449,7 @@ async function startUnwrap() {
       body: form,
     });
     if (!res.ok) {
-      const err = await res.json();
-      progressText.textContent = `Error: ${err.detail || 'Failed to start'}`;
+      progressText.textContent = `Error: ${await readErrorBody(res, 'Failed to start')}`;
       unwrapBtn.disabled = false;
       return;
     }
@@ -1829,8 +1853,7 @@ async function applyCut() {
   try {
     const resp = await fetch(`${API}/api/cut-edges/${currentJobId}`, { method: 'POST', body: form });
     if (!resp.ok) {
-      const err = await resp.json();
-      alert(err.detail || 'Cut failed');
+      alert(await readErrorBody(resp, 'Cut failed'));
       hideProgress();
       return;
     }
@@ -2033,8 +2056,7 @@ async function applyJoin() {
   try {
     const resp = await fetch(`${API}/api/join-islands/${currentJobId}`, { method: 'POST', body: form });
     if (!resp.ok) {
-      const err = await resp.json();
-      alert(err.detail || 'Join failed');
+      alert(await readErrorBody(resp, 'Join failed'));
       hideProgress();
       return;
     }
