@@ -234,13 +234,10 @@ class UVUnwrapPipeline:
         Returns:
             Dictionary with project_type, recommended_strategy, etc.
         """
-        import trimesh
-
         # Load mesh if needed
         if isinstance(mesh_input, (str, Path)):
-            mesh = trimesh.load(mesh_input, force="mesh")
-            if isinstance(mesh, trimesh.Scene):
-                mesh = trimesh.util.concatenate(mesh.dump())
+            from ..data.mesh_io import load_mesh
+            mesh = load_mesh(mesh_input)
         else:
             mesh = mesh_input
 
@@ -293,13 +290,10 @@ class UVUnwrapPipeline:
         Returns:
             Dictionary with results including UV coordinates
         """
-        import trimesh
-
         # Load mesh if needed
         if isinstance(mesh_input, (str, Path)):
-            mesh = trimesh.load(mesh_input, force="mesh")
-            if isinstance(mesh, trimesh.Scene):
-                mesh = trimesh.util.concatenate(mesh.dump())
+            from ..data.mesh_io import load_mesh
+            mesh = load_mesh(mesh_input)
         else:
             mesh = mesh_input
 

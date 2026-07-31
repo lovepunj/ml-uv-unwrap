@@ -13,6 +13,10 @@ pillow==10.4.0
 # Geometric chart decomposition fallback (multi-chart / detect modes)
 scikit-learn==1.6.1
 
+# Mesh format importers: FBX via assimp, USD/USDZ via Pixar usd-core
+assimp-py==1.1.0
+usd-core==26.8
+
 # Web
 fastapi==0.128.8
 uvicorn==0.39.0

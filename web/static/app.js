@@ -274,22 +274,40 @@ function loadMeshPreview(file) {
       updatePreviewInfo(currentMesh);
     }, undefined, err => console.error('GLB load error:', err));
   } else {
-    new OBJLoader().load(url, obj => {
-      obj.traverse(child => {
-        if (child.isMesh) {
-          child.material = new THREE.MeshStandardMaterial({
-            color: 0x8888aa,
-            roughness: 0.6,
-            metalness: 0.1,
-          });
-          originalMaterials.set(child.uuid, child.material.clone());
-        }
+    // Formats the browser can't read directly (OBJ, FBX, PLY, STL, USDZ, ...)
+    // are converted server-side to a GLB preview after upload.
+    const ts = Date.now();
+    const previewUrl = `${API}/api/preview/${currentJobId}?t=${ts}`;
+    new GLTFLoader().load(previewUrl, gltf => {
+      currentMesh = gltf.scene;
+      currentMesh.traverse(child => {
+        if (child.isMesh) originalMaterials.set(child.uuid, child.material.clone());
       });
-      currentMesh = obj;
       fitCamera(currentMesh);
       scene.add(currentMesh);
       updatePreviewInfo(currentMesh);
-    }, undefined, err => console.error('OBJ load error:', err));
+    }, undefined, () => {
+      if (name.endsWith('.obj')) {
+        new OBJLoader().load(url, obj => {
+          obj.traverse(child => {
+            if (child.isMesh) {
+              child.material = new THREE.MeshStandardMaterial({
+                color: 0x8888aa,
+                roughness: 0.6,
+                metalness: 0.1,
+              });
+              originalMaterials.set(child.uuid, child.material.clone());
+            }
+          });
+          currentMesh = obj;
+          fitCamera(currentMesh);
+          scene.add(currentMesh);
+          updatePreviewInfo(currentMesh);
+        }, undefined, err => console.error('OBJ load error:', err));
+      } else {
+        console.error('Preview load error:', name);
+      }
+    });
   }
 }
 

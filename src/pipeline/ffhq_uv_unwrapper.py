@@ -49,9 +49,8 @@ class FFHQUVUnwrapper:
         max_chart_count: int = 0,
     ) -> dict:
         if isinstance(mesh, (str, Path)):
-            mesh = trimesh.load(mesh, force="mesh")
-            if isinstance(mesh, trimesh.Scene):
-                mesh = trimesh.util.concatenate(mesh.dump())
+            from ..data.mesh_io import load_mesh
+            mesh = load_mesh(mesh)
 
         vertices = np.array(mesh.vertices, dtype=np.float32)
         faces = np.array(mesh.faces, dtype=np.int32)

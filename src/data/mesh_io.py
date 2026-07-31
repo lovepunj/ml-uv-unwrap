@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-"""Mesh I/O utilities using trimesh."""
+"""Mesh I/O utilities using trimesh (plus FBX via assimp, USD/USDZ via usd-core)."""
 
 from pathlib import Path
 
@@ -8,13 +8,162 @@ import numpy as np
 import torch
 import trimesh
 
+#: File extensions accepted by :func:`load_mesh`.
+SUPPORTED_FORMATS = {
+    ".obj",
+    ".ply",
+    ".stl",
+    ".off",
+    ".glb",
+    ".gltf",
+    ".fbx",
+    ".usd",
+    ".usda",
+    ".usdc",
+    ".usdz",
+}
+
+_USD_FORMATS = {".usd", ".usda", ".usdc", ".usdz"}
+
 
 def load_mesh(path: str | Path) -> trimesh.Trimesh:
-    """Load a mesh from file (OBJ, PLY, FBX, GLB, STL, etc.)."""
-    mesh = trimesh.load(path, force="mesh")
-    if isinstance(mesh, trimesh.Scene):
-        mesh = trimesh.util.concatenate(mesh.dump())
+    """Load a mesh from file, normalizing scenes to a single Trimesh.
+
+    Supported formats: OBJ, PLY, STL, OFF, GLB, GLTF, FBX (assimp), and
+    USD/USDA/USDC/USDZ (Pixar usd-core).
+
+    Raises:
+        FileNotFoundError: If the file does not exist.
+        ValueError: If the format is unsupported, unreadable, or the file
+            contains no mesh geometry.
+    """
+    path = Path(path)
+    if not path.exists():
+        raise FileNotFoundError(f"File not found: {path}")
+
+    suffix = path.suffix.lower()
+    if suffix not in SUPPORTED_FORMATS:
+        raise ValueError(
+            f"Unsupported file format '{suffix}'. "
+            f"Supported: {', '.join(sorted(SUPPORTED_FORMATS))}"
+        )
+
+    if suffix in _USD_FORMATS:
+        mesh = _load_usd(path)
+    elif suffix == ".fbx":
+        mesh = _load_fbx(path)
+    else:
+        mesh = trimesh.load(path, force="mesh")
+        if isinstance(mesh, trimesh.Scene):
+            if not mesh.geometry:
+                raise ValueError(f"No geometry found in '{path.name}'")
+            mesh = trimesh.util.concatenate(mesh.dump())
+
+    if mesh is None or len(mesh.vertices) == 0 or len(mesh.faces) == 0:
+        raise ValueError(
+            f"'{path.name}' contains no mesh geometry (0 vertices or 0 faces)"
+        )
+
     return mesh
+
+
+def _load_usd(path: Path) -> trimesh.Trimesh:
+    """Load a USD/USDA/USDC/USDZ file (via Pixar usd-core) into a Trimesh."""
+    try:
+        from pxr import Usd, UsdGeom
+    except ImportError:
+        raise ValueError(
+            "USD/USDZ support requires the 'usd-core' package "
+            "(pip install usd-core)"
+        ) from None
+
+    try:
+        stage = Usd.Stage.Open(str(path))
+    except Exception as e:
+        raise ValueError(f"Failed to open USD file '{path.name}': {e}") from e
+    if stage is None:
+        raise ValueError(f"Failed to open USD file '{path.name}'")
+
+    meshes = []
+    for prim in stage.Traverse():
+        if not prim.IsA(UsdGeom.Mesh):
+            continue
+        mesh_prim = UsdGeom.Mesh(prim)
+        points = mesh_prim.GetPointsAttr().Get()
+        counts = mesh_prim.GetFaceVertexCountsAttr().Get() or []
+        indices = mesh_prim.GetFaceVertexIndicesAttr().Get() or []
+        if not points or not counts or not indices:
+            continue
+
+        # Build faces, fan-triangulating any n-gons so trimesh only sees triangles.
+        faces = []
+        i = 0
+        for count in counts:
+            if i + count > len(indices):
+                break
+            face = [int(x) for x in indices[i:i + count]]
+            if len(face) == 3:
+                faces.append(face)
+            elif len(face) > 3:
+                for j in range(1, len(face) - 1):
+                    faces.append([face[0], face[j], face[j + 1]])
+            i += count
+
+        if faces:
+            tri = trimesh.Trimesh(
+                vertices=np.asarray(points, dtype=np.float64),
+                faces=np.asarray(faces, dtype=np.int64),
+                process=True,
+            )
+            if hasattr(tri, "remove_degenerate_faces"):
+                tri.remove_degenerate_faces()
+            if len(tri.faces):
+                meshes.append(tri)
+
+    if not meshes:
+        raise ValueError(f"No meshes (UsdGeom.Mesh) found in '{path.name}'")
+    if len(meshes) == 1:
+        return meshes[0]
+    return trimesh.util.concatenate(meshes)
+
+
+def _load_fbx(path: Path) -> trimesh.Trimesh:
+    """Load an FBX file (via assimp) into a Trimesh."""
+    try:
+        import assimp_py
+    except ImportError:
+        raise ValueError(
+            "FBX support requires the 'assimp-py' package (pip install assimp-py)"
+        ) from None
+
+    flags = (
+        assimp_py.Process_Triangulate
+        | assimp_py.Process_JoinIdenticalVertices
+        | assimp_py.Process_GenNormals
+        | assimp_py.Process_ValidateDataStructure
+    )
+    try:
+        scene = assimp_py.import_file(str(path), flags)
+    except Exception as e:
+        raise ValueError(f"Failed to parse FBX file '{path.name}': {e}") from e
+
+    meshes = []
+    for m in scene.meshes:
+        verts = np.asarray(m.vertices, dtype=np.float64).reshape(-1, 3)
+        indices = np.asarray(m.indices, dtype=np.int64).reshape(-1, 3)
+        if len(verts) == 0 or len(indices) == 0:
+            continue
+        tri = trimesh.Trimesh(vertices=verts, faces=indices, process=True)
+        if hasattr(tri, "remove_degenerate_faces"):
+            tri.remove_degenerate_faces()
+        if len(tri.faces):
+            meshes.append(tri)
+
+    if not meshes:
+        raise ValueError(f"No meshes found in '{path.name}'")
+    if len(meshes) == 1:
+        return meshes[0]
+    return trimesh.util.concatenate(meshes)
 
 
 def mesh_to_tensors(

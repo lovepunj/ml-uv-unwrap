@@ -109,9 +109,8 @@ class MeshTypeDetector:
         """
         # Load mesh if needed
         if isinstance(mesh, (str, Path)):
-            mesh = trimesh.load(mesh, force="mesh")
-            if isinstance(mesh, trimesh.Scene):
-                mesh = trimesh.util.concatenate(mesh.dump())
+            from ..data.mesh_io import load_mesh
+            mesh = load_mesh(mesh)
 
         # Extract geometric features
         features = self._extract_features(mesh)

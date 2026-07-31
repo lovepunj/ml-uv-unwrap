@@ -8,8 +8,13 @@ pinned: false
 
 # ML UV Unwrap
 
-ML-trained UV unwrapping tool for 3D meshes. Upload a mesh (OBJ/GLB/PLY/STL/FBX)
-and unwrap it with 23 methods:
+ML-trained UV unwrapping tool for 3D meshes. Upload a mesh and unwrap it
+with 23 methods. Supported input formats:
+
+- **OBJ**, **FBX**, **GLTF/GLB**, **USDZ/USD/USDA/USDC**, PLY, STL, OFF
+
+  (FBX via Assimp, USD/USDZ via Pixar USD. Note: `.gltf` files with external
+  `.bin` buffers must be self-contained or uploaded as `.glb`.)
 
 - **Classical**: xatlas, LSCM, ABF, ARAP, harmonic, conformal, graph cuts, hilbert
 - **Research**: voronoi disks, instant meshes, libuvula

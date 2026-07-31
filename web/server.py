@@ -225,45 +225,73 @@ async def health():
 
 @app.post("/api/upload")
 async def upload_mesh(file: UploadFile = File(...)):
-    """Upload a mesh file and return a job ID."""
-    import trimesh
+    """Upload a mesh file and return a job ID.
 
-    allowed = {".obj", ".ply", ".stl", ".glb", ".gltf", ".off", ".fbx"}
+    Supported: OBJ, FBX, GLTF/GLB, USDZ, PLY, STL, OFF. Every format is
+    parsed and validated, then normalized to a canonical OBJ (for all
+    downstream pipeline steps) plus a GLB preview.
+    """
+    from src.data.mesh_io import SUPPORTED_FORMATS, load_mesh
+
     suffix = Path(file.filename or "mesh.obj").suffix.lower()
-    if suffix not in allowed:
-        raise HTTPException(400, f"Unsupported file type: {suffix}")
+    if suffix not in SUPPORTED_FORMATS:
+        raise HTTPException(
+            400,
+            f"Unsupported file type: {suffix}. "
+            f"Supported: {', '.join(sorted(SUPPORTED_FORMATS))}",
+        )
 
     job_id = uuid.uuid4().hex[:12]
     job_dir = UPLOAD_DIR / job_id
     job_dir.mkdir(parents=True, exist_ok=True)
 
-    save_path = job_dir / f"input{suffix}"
-    with open(save_path, "wb") as f:
+    original_path = job_dir / f"original{suffix}"
+    with open(original_path, "wb") as f:
         shutil.copyfileobj(file.file, f)
 
-    if save_path.stat().st_size > MAX_UPLOAD_BYTES:
+    if original_path.stat().st_size > MAX_UPLOAD_BYTES:
         shutil.rmtree(job_dir, ignore_errors=True)
         raise HTTPException(413, f"File too large (max {MAX_UPLOAD_BYTES // (1024 * 1024)} MB)")
 
-    # Quick mesh info
+    # Parse + validate the mesh (FBX/USDZ via dedicated importers)
     try:
-        mesh = trimesh.load(save_path, force="mesh")
-        if isinstance(mesh, trimesh.Scene):
-            mesh = trimesh.util.concatenate(mesh.dump())
-        bbox = mesh.bounding_box.extents
-        info = {
-            "vertices": len(mesh.vertices),
-            "faces": len(mesh.faces),
-            "filename": file.filename,
-            "bounds": f"{bbox[0]:.2f} x {bbox[1]:.2f} x {bbox[2]:.2f}",
-        }
+        mesh = load_mesh(original_path)
     except Exception as e:
+        shutil.rmtree(job_dir, ignore_errors=True)
+        if suffix == ".gltf":
+            raise HTTPException(
+                400,
+                f"Failed to parse GLTF: {e}. If this file references an "
+                "external .bin buffer, re-export it with embedded buffers "
+                "or use the .glb format instead.",
+            )
         raise HTTPException(400, f"Failed to parse mesh: {e}")
+
+    # Normalize to canonical OBJ + GLB preview so every downstream step
+    # (unwrap, detect, cut edges, ...) works regardless of input format.
+    input_path = job_dir / "input.obj"
+    preview_path = job_dir / "preview.glb"
+    try:
+        mesh.export(str(input_path), file_type="obj")
+        mesh.export(str(preview_path), file_type="glb")
+    except Exception as e:
+        shutil.rmtree(job_dir, ignore_errors=True)
+        raise HTTPException(400, f"Failed to convert mesh: {e}")
+
+    bbox = mesh.bounding_box.extents
+    info = {
+        "vertices": len(mesh.vertices),
+        "faces": len(mesh.faces),
+        "filename": file.filename,
+        "bounds": f"{bbox[0]:.2f} x {bbox[1]:.2f} x {bbox[2]:.2f}",
+    }
 
     jobs[job_id] = {
         "id": job_id,
         "status": "uploaded",
-        "input_path": str(save_path),
+        "input_path": str(input_path),
+        "original_path": str(original_path),
+        "preview_path": str(preview_path),
         "filename": file.filename,
         "mesh_info": info,
         "progress": 0,
